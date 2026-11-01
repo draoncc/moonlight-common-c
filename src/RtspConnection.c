@@ -886,8 +886,6 @@ static bool parseUrlAddrFromRtspUrlString(const char* rtspUrlString, char* desti
     return true;
 }
 
-// SDP attributes are in the form:
-// a=x-nv-bwe.bwuSafeZoneLowLimit:70\r\n
 // Returns true if the comma-separated list value of the specified SDP attribute
 // contains the specified token (e.g. "a=x-apollo-audio.codecs:opus,pcm" contains "pcm")
 static bool sdpAttributeListContains(const char* payload, const char* name, const char* token) {
@@ -926,6 +924,8 @@ static bool sdpAttributeListContains(const char* payload, const char* name, cons
     return false;
 }
 
+// SDP attributes are in the form:
+// a=x-nv-bwe.bwuSafeZoneLowLimit:70\r\n
 bool parseSdpAttributeToUInt(const char* payload, const char* name, unsigned int* val) {
     // Find the entry for the specified attribute name
     char* attribute = strstr(payload, name);
