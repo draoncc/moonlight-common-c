@@ -888,6 +888,44 @@ static bool parseUrlAddrFromRtspUrlString(const char* rtspUrlString, char* desti
 
 // SDP attributes are in the form:
 // a=x-nv-bwe.bwuSafeZoneLowLimit:70\r\n
+// Returns true if the comma-separated list value of the specified SDP attribute
+// contains the specified token (e.g. "a=x-apollo-audio.codecs:opus,pcm" contains "pcm")
+static bool sdpAttributeListContains(const char* payload, const char* name, const char* token) {
+    size_t tokenLen = strlen(token);
+
+    // Find the entry for the specified attribute name
+    const char* attribute = strstr(payload, name);
+    if (!attribute) {
+        return false;
+    }
+
+    // Locate the start of the value
+    const char* valst = strchr(attribute, ':');
+    if (!valst) {
+        return false;
+    }
+    valst++;
+
+    // Walk each list element up to the end of the SDP attribute line
+    while (*valst != 0 && *valst != '\r' && *valst != '\n') {
+        const char* valend = valst;
+        while (*valend != 0 && *valend != ',' && *valend != '\r' && *valend != '\n') {
+            valend++;
+        }
+
+        if ((size_t)(valend - valst) == tokenLen && strncmp(valst, token, tokenLen) == 0) {
+            return true;
+        }
+
+        if (*valend != ',') {
+            break;
+        }
+        valst = valend + 1;
+    }
+
+    return false;
+}
+
 bool parseSdpAttributeToUInt(const char* payload, const char* name, unsigned int* val) {
     // Find the entry for the specified attribute name
     char* attribute = strstr(payload, name);
@@ -1140,6 +1178,12 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
             EncryptionFeaturesRequested = 0;
         }
         EncryptionFeaturesEnabled = 0;
+
+        // Look for Apollo's list of offered audio codecs in the SDP attributes
+        PcmAudioSupported = sdpAttributeListContains(response.payload, "x-apollo-audio.codecs", "pcm");
+        if (PcmAudioSupported) {
+            Limelog("Host offers PCM audio\n");
+        }
 
         // Parse the Opus surround parameters out of the RTSP DESCRIBE response.
         ret = parseOpusConfigurations(&response);

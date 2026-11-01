@@ -201,7 +201,10 @@ static void decodeInputData(PQUEUED_AUDIO_PACKET packet) {
         }
 
 #ifdef LC_DEBUG
-        if (opusHeaderByte == INVALID_OPUS_HEADER) {
+        if (NegotiatedAudioCodec != AUDIO_CODEC_OPUS) {
+            // PCM audio has no constant header byte to check
+        }
+        else if (opusHeaderByte == INVALID_OPUS_HEADER) {
             opusHeaderByte = decryptedOpusData[0];
             LC_ASSERT_VT(opusHeaderByte != INVALID_OPUS_HEADER);
         }
@@ -219,7 +222,10 @@ static void decodeInputData(PQUEUED_AUDIO_PACKET packet) {
     }
     else {
 #ifdef LC_DEBUG
-        if (opusHeaderByte == INVALID_OPUS_HEADER) {
+        if (NegotiatedAudioCodec != AUDIO_CODEC_OPUS) {
+            // PCM audio has no constant header byte to check
+        }
+        else if (opusHeaderByte == INVALID_OPUS_HEADER) {
             opusHeaderByte = ((uint8_t*)(rtp + 1))[0];
             LC_ASSERT_VT(opusHeaderByte != INVALID_OPUS_HEADER);
         }
@@ -436,6 +442,7 @@ int startAudioStream(void* audioContext, int arFlags) {
     }
 
     chosenConfig.samplesPerFrame = 48 * AudioPacketDuration;
+    chosenConfig.audioCodec = NegotiatedAudioCodec;
 
     err = AudioCallbacks.init(StreamConfig.audioConfiguration, &chosenConfig, audioContext, arFlags);
     if (err != 0) {

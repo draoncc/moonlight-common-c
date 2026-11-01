@@ -30,6 +30,8 @@ extern bool HighQualitySurroundEnabled;
 extern OPUS_MULTISTREAM_CONFIGURATION NormalQualityOpusConfig;
 extern OPUS_MULTISTREAM_CONFIGURATION HighQualityOpusConfig;
 extern int AudioPacketDuration;
+extern bool PcmAudioSupported;
+extern int NegotiatedAudioCodec;
 extern bool AudioEncryptionEnabled;
 extern bool ReferenceFrameInvalidationSupported;
 

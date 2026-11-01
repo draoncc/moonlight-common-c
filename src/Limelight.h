@@ -272,6 +272,15 @@ typedef struct _DECODE_UNIT {
 // supports reference frame invalidation for AV1 streams. This flag is only valid on video renderers.
 #define CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 0x40
 
+// If set in the audio renderer capabilities field, this flag indicates that the audio renderer
+// can play PCM audio (AUDIO_CODEC_PCM). PCM audio is only requested if the host also offers it
+// (Apollo advertises this with the x-apollo-audio.codecs SDP attribute); otherwise the session
+// uses Opus audio as usual. Renderers setting this flag must check the audioCodec field of the
+// OPUS_MULTISTREAM_CONFIGURATION passed to their init callback and must honor samplesPerFrame,
+// since PCM audio uses a packet duration of 5 ms (stereo), 2 ms (5.1) or 1 ms (7.1).
+// This flag is only valid on audio renderers.
+#define CAPABILITY_PCM_AUDIO 0x80
+
 // If set in the video renderer capabilities field, this macro specifies that the renderer
 // supports slicing to increase decoding performance. The parameter specifies the desired
 // number of slices per frame. This capability is only valid on video renderers.
@@ -326,6 +335,14 @@ void LiInitializeVideoCallbacks(PDECODER_RENDERER_CALLBACKS drCallbacks);
 //
 // If the mapping order does not match the channel order of the audio renderer, you may swap
 // the values in the mismatched indices until the mapping array matches the desired channel order.
+//
+// The audioCodec field indicates the negotiated audio codec. For AUDIO_CODEC_PCM, the streams,
+// coupledStreams and mapping fields are meaningless and must be ignored. Each audio packet
+// passed to decodeAndPlaySample() then contains samplesPerFrame frames of little-endian
+// interleaved signed 16-bit samples at sampleRate, in the channel order listed above
+// (FL FR C LFE BL BR SL SR). A lost packet is still reported as a NULL sample buffer.
+#define AUDIO_CODEC_OPUS 0
+#define AUDIO_CODEC_PCM  1
 typedef struct _OPUS_MULTISTREAM_CONFIGURATION {
     int sampleRate;
     int channelCount;
@@ -333,6 +350,7 @@ typedef struct _OPUS_MULTISTREAM_CONFIGURATION {
     int coupledStreams;
     int samplesPerFrame;
     unsigned char mapping[AUDIO_CONFIGURATION_MAX_CHANNEL_COUNT];
+    int audioCodec;
 } OPUS_MULTISTREAM_CONFIGURATION, *POPUS_MULTISTREAM_CONFIGURATION;
 
 // This callback initializes the audio renderer. The audio configuration parameter

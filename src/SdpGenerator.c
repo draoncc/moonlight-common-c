@@ -489,7 +489,35 @@ static PSDP_OPTION getAttributesList(char*urlSafeAddr) {
         }
     }
 
-    if (AppVersionQuad[0] >= 7) {
+    // Opus audio unless both the renderer and the host support PCM audio
+    NegotiatedAudioCodec = AUDIO_CODEC_OPUS;
+
+    if (AppVersionQuad[0] >= 7 && PcmAudioSupported && (AudioCallbacks.capabilities & CAPABILITY_PCM_AUDIO)) {
+        // Request PCM audio from Apollo
+        err |= addAttributeString(&optionHead, "x-apollo-audio.codec", "pcm");
+        NegotiatedAudioCodec = AUDIO_CODEC_PCM;
+
+        // The Opus high quality preset doesn't apply to PCM audio
+        err |= addAttributeString(&optionHead, "x-nv-audio.surround.AudioQuality", "0");
+        HighQualitySurroundEnabled = false;
+
+        // Shorten the packet duration with the channel count so each packet stays within
+        // the audio packet size limit (see ADR 0001 in Apollo):
+        // stereo 5 ms (960 B), 5.1 2 ms (1152 B), 7.1 1 ms (768 B)
+        if (audioChannelCount <= 2) {
+            AudioPacketDuration = 5;
+        }
+        else if (audioChannelCount <= 6) {
+            AudioPacketDuration = 2;
+        }
+        else {
+            AudioPacketDuration = 1;
+        }
+
+        snprintf(payloadStr, sizeof(payloadStr), "%d", AudioPacketDuration);
+        err |= addAttributeString(&optionHead, "x-nv-aqos.packetDuration", payloadStr);
+    }
+    else if (AppVersionQuad[0] >= 7) {
         if (StreamConfig.bitrate >= HIGH_AUDIO_BITRATE_THRESHOLD && audioChannelCount > 2 &&
                 HighQualitySurroundSupported && (AudioCallbacks.capabilities & CAPABILITY_SLOW_OPUS_DECODER) == 0) {
             // Enable high quality mode for surround sound

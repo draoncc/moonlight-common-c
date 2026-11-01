@@ -23,6 +23,8 @@ bool HighQualitySurroundEnabled;
 OPUS_MULTISTREAM_CONFIGURATION NormalQualityOpusConfig;
 OPUS_MULTISTREAM_CONFIGURATION HighQualityOpusConfig;
 int AudioPacketDuration;
+bool PcmAudioSupported;
+int NegotiatedAudioCodec;
 bool AudioEncryptionEnabled;
 bool ReferenceFrameInvalidationSupported;
 uint16_t RtspPortNumber;
