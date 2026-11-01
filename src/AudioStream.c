@@ -25,6 +25,11 @@ static uint8_t opusHeaderByte;
 
 #define MAX_PACKET_SIZE 1400
 
+// How many packets the decoder queue holds before it overflows and is flushed.
+// This was sized for Opus audio's usual 5 ms packets (150 ms of audio).
+#define AUDIO_QUEUE_BOUND 30
+#define AUDIO_QUEUE_BOUND_PACKET_DURATION 5
+
 typedef struct _QUEUE_AUDIO_PACKET_HEADER {
     LINKED_BLOCKING_QUEUE_ENTRY lentry;
     int size;
@@ -66,7 +71,7 @@ static void AudioPingThreadProc(void* context) {
 
 // Initialize the audio stream and start
 int initializeAudioStream(void) {
-    LbqInitializeLinkedBlockingQueue(&packetQueue, 30);
+    LbqInitializeLinkedBlockingQueue(&packetQueue, AUDIO_QUEUE_BOUND);
     RtpaInitializeQueue(&rtpAudioQueue);
     lastSeq = 0;
     receivedDataFromPeer = false;
@@ -159,6 +164,28 @@ static bool queuePacketToLbq(PQUEUED_AUDIO_PACKET* packet) {
     return err == LBQ_SUCCESS;
 }
 
+#ifdef LC_DEBUG
+// Checks the first byte of an audio packet's (decrypted) payload. PCM audio has no constant header byte to check.
+static void checkOpusHeaderByte(uint8_t headerByte) {
+    if (NegotiatedAudioCodec != AUDIO_CODEC_OPUS) {
+        return;
+    }
+
+    if (opusHeaderByte == INVALID_OPUS_HEADER) {
+        opusHeaderByte = headerByte;
+        LC_ASSERT_VT(opusHeaderByte != INVALID_OPUS_HEADER);
+    }
+    else {
+        // Opus header should stay constant for the entire stream.
+        // If it doesn't, it may indicate that the RtpAudioQueue
+        // incorrectly recovered a data shard or the decryption
+        // of the audio packet failed. Sunshine violates this for
+        // surround sound in some cases, so just ignore it.
+        LC_ASSERT_VT(headerByte == opusHeaderByte || IS_SUNSHINE());
+    }
+}
+#endif
+
 static void decodeInputData(PQUEUED_AUDIO_PACKET packet) {
     // If the packet size is zero, this is a placeholder for a missing
     // packet. Trigger packet loss concealment logic in libopus by
@@ -201,41 +228,14 @@ static void decodeInputData(PQUEUED_AUDIO_PACKET packet) {
         }
 
 #ifdef LC_DEBUG
-        if (NegotiatedAudioCodec != AUDIO_CODEC_OPUS) {
-            // PCM audio has no constant header byte to check
-        }
-        else if (opusHeaderByte == INVALID_OPUS_HEADER) {
-            opusHeaderByte = decryptedOpusData[0];
-            LC_ASSERT_VT(opusHeaderByte != INVALID_OPUS_HEADER);
-        }
-        else {
-            // Opus header should stay constant for the entire stream.
-            // If it doesn't, it may indicate that the RtpAudioQueue
-            // incorrectly recovered a data shard or the decryption
-            // of the audio packet failed. Sunshine violates this for
-            // surround sound in some cases, so just ignore it.
-            LC_ASSERT_VT(decryptedOpusData[0] == opusHeaderByte || IS_SUNSHINE());
-        }
+        checkOpusHeaderByte(decryptedOpusData[0]);
 #endif
 
         AudioCallbacks.decodeAndPlaySample((char*)decryptedOpusData, dataLength);
     }
     else {
 #ifdef LC_DEBUG
-        if (NegotiatedAudioCodec != AUDIO_CODEC_OPUS) {
-            // PCM audio has no constant header byte to check
-        }
-        else if (opusHeaderByte == INVALID_OPUS_HEADER) {
-            opusHeaderByte = ((uint8_t*)(rtp + 1))[0];
-            LC_ASSERT_VT(opusHeaderByte != INVALID_OPUS_HEADER);
-        }
-        else {
-            // Opus header should stay constant for the entire stream.
-            // If it doesn't, it may indicate that the RtpAudioQueue
-            // incorrectly recovered a data shard. Sunshine violates
-            // this for surround sound in some cases, so just ignore it.
-            LC_ASSERT_VT(((uint8_t*)(rtp + 1))[0] == opusHeaderByte || IS_SUNSHINE());
-        }
+        checkOpusHeaderByte(((uint8_t*)(rtp + 1))[0]);
 #endif
 
         AudioCallbacks.decodeAndPlaySample((char*)(rtp + 1), packet->header.size - sizeof(*rtp));
@@ -443,6 +443,14 @@ int startAudioStream(void* audioContext, int arFlags) {
 
     chosenConfig.samplesPerFrame = 48 * AudioPacketDuration;
     chosenConfig.audioCodec = NegotiatedAudioCodec;
+
+    if (NegotiatedAudioCodec == AUDIO_CODEC_PCM) {
+        // PCM audio packets are as short as 1 ms, so scale the decoder queue bound to hold
+        // about as much audio as it does for Opus audio, rather than as little as 30 ms.
+        // The packet duration is only known after the RTSP handshake, which runs after
+        // initializeAudioStream(). The receive thread hasn't started, so the queue is empty.
+        packetQueue.sizeBound = AUDIO_QUEUE_BOUND * AUDIO_QUEUE_BOUND_PACKET_DURATION / AudioPacketDuration;
+    }
 
     err = AudioCallbacks.init(StreamConfig.audioConfiguration, &chosenConfig, audioContext, arFlags);
     if (err != 0) {
