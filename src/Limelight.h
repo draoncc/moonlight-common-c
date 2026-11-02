@@ -273,11 +273,11 @@ typedef struct _DECODE_UNIT {
 #define CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 0x40
 
 // If set in the audio renderer capabilities field, this flag indicates that the audio renderer
-// can play PCM audio (AUDIO_CODEC_PCM). PCM audio is only requested if the host also offers it
-// (Apollo advertises this with the x-apollo-audio.codecs SDP attribute); otherwise the session
-// uses Opus audio as usual. Renderers setting this flag must check the audioCodec field of the
+// can play PCM audio (AUDIO_CODEC_PCM). PCM audio is only accepted if the host also offers it
+// (with the x-ss-audio-codec-offer:PCM SDP attribute); otherwise the session uses Opus audio as
+// usual. Renderers setting this flag must check the audioCodec field of the
 // OPUS_MULTISTREAM_CONFIGURATION passed to their init callback and must honor samplesPerFrame,
-// since PCM audio uses a packet duration of 5 ms (stereo), 2 ms (5.1) or 1 ms (7.1).
+// which is 240 for PCM audio (a packet duration of 5 ms).
 // This flag is only valid on audio renderers.
 #define CAPABILITY_PCM_AUDIO 0x80
 

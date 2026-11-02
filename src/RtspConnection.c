@@ -886,10 +886,10 @@ static bool parseUrlAddrFromRtspUrlString(const char* rtspUrlString, char* desti
     return true;
 }
 
-// Returns true if the comma-separated list value of the specified SDP attribute
-// contains the specified token (e.g. "a=x-apollo-audio.codecs:opus,pcm" contains "pcm")
-static bool sdpAttributeListContains(const char* payload, const char* name, const char* token) {
-    size_t tokenLen = strlen(token);
+// Returns true if the value of the specified SDP attribute is exactly the specified
+// value (e.g. "a=x-ss-audio-codec-offer:PCM" has the value "PCM")
+static bool sdpAttributeValueEquals(const char* payload, const char* name, const char* value) {
+    size_t valueLen = strlen(value);
 
     // Find the entry for the specified attribute name
     const char* attribute = strstr(payload, name);
@@ -904,24 +904,13 @@ static bool sdpAttributeListContains(const char* payload, const char* name, cons
     }
     valst++;
 
-    // Walk each list element up to the end of the SDP attribute line
-    while (*valst != 0 && *valst != '\r' && *valst != '\n') {
-        const char* valend = valst;
-        while (*valend != 0 && *valend != ',' && *valend != '\r' && *valend != '\n') {
-            valend++;
-        }
-
-        if ((size_t)(valend - valst) == tokenLen && strncmp(valst, token, tokenLen) == 0) {
-            return true;
-        }
-
-        if (*valend != ',') {
-            break;
-        }
-        valst = valend + 1;
+    // Find the end of the SDP attribute line
+    const char* valend = valst;
+    while (*valend != 0 && *valend != '\r' && *valend != '\n') {
+        valend++;
     }
 
-    return false;
+    return (size_t)(valend - valst) == valueLen && strncmp(valst, value, valueLen) == 0;
 }
 
 // SDP attributes are in the form:
@@ -1179,9 +1168,11 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         }
         EncryptionFeaturesEnabled = 0;
 
-        // Look for Apollo's list of offered audio codecs in the SDP attributes
-        PcmAudioSupported = sdpAttributeListContains(response.payload, "x-apollo-audio.codecs", "pcm");
-        if (PcmAudioSupported) {
+        // Look for the audio codec offered by the host in the SDP attributes. A host offers
+        // at most one audio codec. Only a PCM audio offer matters here, since Dolby audio
+        // (AC3 or EAC3) is never accepted.
+        PcmAudioOffered = sdpAttributeValueEquals(response.payload, "x-ss-audio-codec-offer", "PCM");
+        if (PcmAudioOffered) {
             Limelog("Host offers PCM audio\n");
         }
 
