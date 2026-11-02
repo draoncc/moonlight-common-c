@@ -489,30 +489,23 @@ static PSDP_OPTION getAttributesList(char*urlSafeAddr) {
         }
     }
 
-    // Opus audio unless both the renderer and the host support PCM audio
+    // Opus audio unless the host offers PCM audio and the renderer supports it
     NegotiatedAudioCodec = AUDIO_CODEC_OPUS;
 
-    if (AppVersionQuad[0] >= 7 && PcmAudioSupported && (AudioCallbacks.capabilities & CAPABILITY_PCM_AUDIO)) {
-        // Request PCM audio from Apollo
-        err |= addAttributeString(&optionHead, "x-apollo-audio.codec", "pcm");
+    if (AppVersionQuad[0] >= 7 && PcmAudioOffered && (AudioCallbacks.capabilities & CAPABILITY_PCM_AUDIO)) {
+        // Accept the host's PCM audio offer. Sending the accept is what makes this a PCM audio
+        // session, so the X-SS-Audio-Codec reply header isn't read. Dolby audio offers (AC3 or
+        // EAC3) are never accepted.
+        err |= addAttributeString(&optionHead, "x-ss-audio-codec-accept", "PCM");
         NegotiatedAudioCodec = AUDIO_CODEC_PCM;
 
         // The Opus high quality preset doesn't apply to PCM audio
         err |= addAttributeString(&optionHead, "x-nv-audio.surround.AudioQuality", "0");
         HighQualitySurroundEnabled = false;
 
-        // Shorten the packet duration with the channel count so each packet stays within
-        // the audio packet size limit (see ADR 0001 in Apollo):
-        // stereo 5 ms (960 B), 5.1 2 ms (1152 B), 7.1 1 ms (768 B)
-        if (audioChannelCount <= 2) {
-            AudioPacketDuration = 5;
-        }
-        else if (audioChannelCount <= 6) {
-            AudioPacketDuration = 2;
-        }
-        else {
-            AudioPacketDuration = 1;
-        }
+        // PCM audio always uses 5 ms packets (stereo 960 B, 5.1 2880 B, 7.1 3840 B), and the
+        // host fixes the same packet duration (see ADR 0001 in Vibepollo)
+        AudioPacketDuration = 5;
 
         snprintf(payloadStr, sizeof(payloadStr), "%d", AudioPacketDuration);
         err |= addAttributeString(&optionHead, "x-nv-aqos.packetDuration", payloadStr);

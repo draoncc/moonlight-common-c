@@ -25,11 +25,6 @@ static uint8_t opusHeaderByte;
 
 #define MAX_PACKET_SIZE 1400
 
-// How many packets the decoder queue holds before it overflows and is flushed.
-// This was sized for Opus audio's usual 5 ms packets (150 ms of audio).
-#define AUDIO_QUEUE_BOUND 30
-#define AUDIO_QUEUE_BOUND_PACKET_DURATION 5
-
 typedef struct _QUEUE_AUDIO_PACKET_HEADER {
     LINKED_BLOCKING_QUEUE_ENTRY lentry;
     int size;
@@ -71,7 +66,7 @@ static void AudioPingThreadProc(void* context) {
 
 // Initialize the audio stream and start
 int initializeAudioStream(void) {
-    LbqInitializeLinkedBlockingQueue(&packetQueue, AUDIO_QUEUE_BOUND);
+    LbqInitializeLinkedBlockingQueue(&packetQueue, 30);
     RtpaInitializeQueue(&rtpAudioQueue);
     lastSeq = 0;
     receivedDataFromPeer = false;
@@ -443,14 +438,6 @@ int startAudioStream(void* audioContext, int arFlags) {
 
     chosenConfig.samplesPerFrame = 48 * AudioPacketDuration;
     chosenConfig.audioCodec = NegotiatedAudioCodec;
-
-    if (NegotiatedAudioCodec == AUDIO_CODEC_PCM) {
-        // PCM audio packets are as short as 1 ms, so scale the decoder queue bound to hold
-        // about as much audio as it does for Opus audio, rather than as little as 30 ms.
-        // The packet duration is only known after the RTSP handshake, which runs after
-        // initializeAudioStream(). The receive thread hasn't started, so the queue is empty.
-        packetQueue.sizeBound = AUDIO_QUEUE_BOUND * AUDIO_QUEUE_BOUND_PACKET_DURATION / AudioPacketDuration;
-    }
 
     err = AudioCallbacks.init(StreamConfig.audioConfiguration, &chosenConfig, audioContext, arFlags);
     if (err != 0) {

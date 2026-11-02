@@ -23,7 +23,7 @@ bool HighQualitySurroundEnabled;
 OPUS_MULTISTREAM_CONFIGURATION NormalQualityOpusConfig;
 OPUS_MULTISTREAM_CONFIGURATION HighQualityOpusConfig;
 int AudioPacketDuration;
-bool PcmAudioSupported;
+bool PcmAudioOffered;
 int NegotiatedAudioCodec;
 bool AudioEncryptionEnabled;
 bool ReferenceFrameInvalidationSupported;
