@@ -23,7 +23,10 @@ static uint64_t firstReceiveTime;
 static uint8_t opusHeaderByte;
 #endif
 
-#define MAX_PACKET_SIZE 1400
+// Hosts send audio payloads of up to 4096 bytes (a 7.1 PCM audio packet is 3840 bytes,
+// 3856 once AES-padded), relying on IP fragmentation. Leave room for the RTP and FEC headers.
+#define MAX_AUDIO_PAYLOAD_SIZE 4096
+#define MAX_PACKET_SIZE ((int)(sizeof(RTP_PACKET) + sizeof(AUDIO_FEC_HEADER) + MAX_AUDIO_PAYLOAD_SIZE))
 
 typedef struct _QUEUE_AUDIO_PACKET_HEADER {
     LINKED_BLOCKING_QUEUE_ENTRY lentry;
